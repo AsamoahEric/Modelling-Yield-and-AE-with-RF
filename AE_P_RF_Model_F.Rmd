@@ -1,0 +1,472 @@
+---
+title: "Modelling - 01"
+author: "Eric Asamoah"
+date: "2022-December-09"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+subtitle: "Random Forest Modelling for Maize AE_P (kg/kg) Prediction - Nested Cross Valdation approach for hyperparameter tuning and model evaluation"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+options(width = 100) # sets width of R code output
+```
+
+```{r}
+# Empty memory and workspace ----------------------
+gc()
+rm(list=ls())
+```
+
+```{r}
+# Load required packages ----------------------
+pkgs <- c("ranger", "caret", "rsample", "dplyr", "ggplot2", "randomForest")
+lapply(pkgs, library, character.only = TRUE)
+```
+
+```{r}
+# Set Working directory
+setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P")
+```
+
+```{r}
+# Set.seed
+set.seed(2022)
+
+# Read in final prepared data containing NUE indicator  ----------------------
+Compiled_Datasets <- readRDS(file = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/1_Data_Preparation/reg_mat_c.rds")
+
+Comp_dats <- subset(Compiled_Datasets, select = -c(Site_ID,Year_of_experiment,Latitude,Longitude,Grain_yield_kg_ha,AE_N,AE_K,N_kg_ha,P2O5_kg_ha,K2O_kg_ha,Plot_ID))
+
+# Reorder columns in the compiled datasets
+Comp_dats <- relocate(Comp_dats, AE_P, .after = Slope)
+```
+
+```{r}
+# Near-zero variance analysis
+# Explanatory variables for which the values show very little or no variation
+nzv <- nearZeroVar(Comp_dats, saveMetrics = TRUE)
+nzv
+
+summary(nzv$nzv)
+```
+
+```{r}
+# Drop near zero variance layers
+Comp_dats <- Comp_dats[,!nzv[,4]]
+```
+
+```{r}
+# Remove all NA's from the regression matrix and derive summary statistics
+Comp_dats <- subset(Comp_dats, !is.na(Comp_dats$AE_P))
+
+AE_P_data <- Comp_dats
+```
+
+```{r}
+# create outer-folds / this is for 10-fold cross-validation
+# k: number of folds in the outer loop
+# p: number of folds in the inner loop
+
+k <- 5
+# If the sqme number of folds in the outer and inner loop use:
+p <- 10
+
+AE_P_data <- AE_P_data[sample(1:nrow(AE_P_data)),]
+AE_P_data$cv_inds <- cut(seq(1,nrow(AE_P_data)),breaks=k,labels=FALSE)
+
+#nre-order the data set
+AE_P_data <- AE_P_data[order(as.numeric(row.names(AE_P_data))),]
+cv_nr <- ncol(AE_P_data)
+```
+
+```{r}
+# create outer-folds / this is for 10-fold cross-validation
+# k: number of folds in the outer loop
+# p: number of folds in the inner loop
+
+k <- 5
+# If the sqme number of folds in the outer and inner loop use:
+p <- 10
+
+AE_P_data <- AE_P_data[sample(1:nrow(AE_P_data)),]
+AE_P_data$cv_inds <- cut(seq(1,nrow(AE_P_data)),breaks=k,labels=FALSE)
+
+#nre-order the data set
+AE_P_data <- AE_P_data[order(as.numeric(row.names(AE_P_data))),]
+cv_nr <- ncol(AE_P_data)
+```
+
+```{r}
+# Quantiles used later to report uncertainty ----------------------
+QUANTILES <- seq(0.00, 1.00, 0.01)
+
+# Perform model calibration with outer fold
+# Define the dependent variable
+AE_P <- "AE_P"
+
+# Explanatory variables to be used as input
+explanatory_vars <- colnames(Comp_dats)[-length(colnames(Comp_dats))]
+
+# Define the formula for performing the modelling
+formula_rf <- as.formula(paste0(AE_P,"~",paste(explanatory_vars, collapse=" + ")))
+
+n_features <- length(setdiff(names(Comp_dats), 'AE_P'))
+
+# Grid search for hyperparameter optimization
+prm_grd <- expand.grid(num.trees = c(1000),
+                       mtry = round(c(sqrt(n_features), n_features  * c(.15, .25, .333, .4))),
+                       min.node.size = c(1, 3, 5),
+                       replace = c(TRUE, FALSE),
+                       sample.fraction = c(.5, .63, .8),
+                       splitrule = "variance")
+
+# Dataframe to store results for the outer folds of the nested cross-validation 
+results <- data.frame(matrix(NA, ncol = 9, nrow = 5))
+
+# Define the columns names of the results table
+colnames(results) <- c('Folds', 'Trn_ME','Trn_RMSE','Trn_MEC', 'Tst_ME','Tst_RMSE','Tst_MEC', 'Within', 'Outside')
+
+# List to store the plots of predicted vs observed for each outer fold of the nested cross-validation
+outer_plots <- list()
+
+# List to store variable importance from each model in the nested cross-validation
+var_imp_p <- list()
+
+# List to store final best combination of RF hyperparamaters that gives the lowest RMSE (loss function)
+list_best_index <- 0
+
+# Dataframe to store results for best combination of hyperparameters of the nested cross-validation 
+best_comb_para <- data.frame(matrix(NA, ncol = 5, nrow = 5))
+
+# Define the columns names of the hyperparameters table which stores the best combination 
+colnames(best_comb_para) <- c('num.tree', 'mtry','min.node.size','replace', 'sample.fraction')
+
+for(l in 1:k){
+  # Define cal, calibration set, for this l-th outer fold
+  outer_tr <- AE_P_data[AE_P_data$cv_inds!=l,][,-cv_nr]
+  outer_tst <- AE_P_data[AE_P_data$cv_inds==l,][,-cv_nr]
+  l_rand <- sample(1:nrow(outer_tr))
+  outer_tr <- outer_tr[l_rand,]
+  outer_seq <- cut(seq(1,nrow(outer_tr)),breaks=p,labels=FALSE)
+  outer_tr$cv_inds <- outer_seq
+  
+  # Re-order the data set
+  outer_tr <- outer_tr[order(as.numeric(row.names(outer_tr))),]
+  outer_tst <- outer_tr[order(as.numeric(row.names(outer_tst))),]
+  
+    # Create storing objects
+    ms_RF <- matrix(NA,nrow(prm_grd),p)
+    
+    for(j in 1:p){
+    inner_trn <- outer_tr[outer_tr$cv_inds!=j,]
+    inner_tst <- outer_tr[outer_tr$cv_inds==j,]
+
+    for(i in 1:nrow(prm_grd)){
+      
+      # Perform RF hyperparameter optimization in the inner fold of nested cross-validation
+      inner_fit <- ranger(
+        formula = formula_rf, 
+        data=inner_trn,
+        num.trees = prm_grd$num.trees[i],
+        replace = prm_grd$replace[i],
+        sample.fraction = prm_grd$sample.fraction[i],
+        mtry = prm_grd$mtry[i],
+        splitrule =prm_grd$splitrule[i],
+        min.node.size = prm_grd$min.node.size[i]
+        )
+
+      # Predict on test data in the inner fold of the nested cross-validation
+      inner_preds <- predict(inner_fit, inner_tst)$predictions  
+
+      # Compute RMSE for the inner models
+      ms_RF[i,j] <- sqrt(mean((inner_tst[,"AE_P"]-inner_preds)^2))
+    }
+  }
+
+  # Combine results with parameter grid
+  ms_RF_df <- as.data.frame(cbind(prm_grd,ms_RF))
+  colnames(ms_RF_df) <- c("num.trees","mtry","min.node.size","replace","sample.fraction","splitrule",paste0("p",1:p))
+  ms_RF_df <- subset(ms_RF_df, select = -c(splitrule)) 
+  
+  ms_RF_mtry_m <- apply(ms_RF_df[,ncol(prm_grd):length(ms_RF_df)],1,mean)
+  ms_RF_mtry_f <- ms_RF_df[which.min(ms_RF_mtry_m),1:ncol(prm_grd)-1]
+  best_comb_para[l,] <- ms_RF_df[which.min(ms_RF_mtry_m),1:ncol(prm_grd)-1]
+  best_idx <- which.min(ms_RF_mtry_m)
+  list_best_index[l] <- best_idx
+  outer_fit <- ranger(
+        formula = formula_rf, 
+        data = outer_tr,
+        num.trees = prm_grd$num.trees[best_idx],
+        importance = "permutation",
+        local.importance = TRUE,
+        quantreg = TRUE, 
+        keep.inbag = TRUE,
+        oob.error = TRUE,
+        replace = prm_grd$replace[best_idx],
+        sample.fraction = prm_grd$sample.fraction[best_idx],
+        mtry = prm_grd$mtry[best_idx],
+        splitrule =prm_grd$splitrule[best_idx],
+        min.node.size = prm_grd$min.node.size[best_idx]
+        )
+  
+  # Predictions for the training data
+  outer_pred_trn <- outer_fit$predictions
+  
+  # Compute RMSE, ME and MEC for the training phase
+  results[l,2] <- mean(outer_tr[,"AE_P"]-outer_pred_trn)
+  results[l,3] <- sqrt(mean((outer_tr[,"AE_P"]-outer_pred_trn)^2))
+  results[l,4] <- outer_fit$r.squared
+  
+  # Predictions for the testing data
+  outer_pred_tstQ <- predict(outer_fit,
+                        outer_tst, # just added this
+                        type = "quantiles",
+                        quantiles = QUANTILES,
+                        keep.inbag = TRUE
+                        )
+  outer_pred_tst <- predict(outer_fit,
+                        outer_tst
+                        )
+  outer_preds <- outer_pred_tst$predictions
+  
+  # Compute n, ME, RMME and MEC for the testing phase
+  results[l,5] <- mean(outer_tst[,"AE_P"]-outer_preds)
+  results[l,6] <- sqrt(mean((outer_tst[,"AE_P"]-outer_preds)^2))
+  results[l,7] <- 1-((sum((outer_tst[,"AE_P"]-outer_preds)^2))/
+             sum((outer_tst[,"AE_P"] - mean(outer_tst[,"AE_P"]))^2)) 
+  
+  # Dataframe with model predictions 
+  QRF_predictions <- data.frame(outer_tst[,"AE_P"], outer_preds, outer_pred_tstQ$predictions)
+  names(QRF_predictions)[-(1:2)] <- paste0("Q",QUANTILES)
+  names(QRF_predictions)[1:2] <- c('observed', 'predicted')
+  
+  QRF_predictions$binary <- ifelse((QRF_predictions$observed > QRF_predictions$Q0.05) & QRF_predictions$observed <  QRF_predictions$Q0.95,1,0)
+  QRF_predictions$PICP_90 <- ifelse(QRF_predictions$binary ==1,'Within interval','Outside interval')
+  
+  s <- QRF_predictions %>%
+  group_by(PICP_90) %>%
+  summarise( percent = 100 * n() / nrow(QRF_predictions))
+  
+  results[l,8] <- s$percent[2]
+  results[l,9] <- s$percent[1]
+
+  df.annotations <- tibble(
+    me = results[l,5],
+    rmse = results[l,6],
+    mec = results[l,7],
+    picp_90 = results[l,8]) %>%
+    
+    # Modify columns for plot annotation (char = characters)
+    mutate(me = as.character(as.expression(paste0("ME == ", round(me, 2)))),
+           rmse = as.character(as.expression(paste0("RMSE == ", round(rmse, 2)))),
+           mec = as.character(as.expression(paste0("MEC == ", round(mec, 2)))),
+           picp_90 = as.character(as.expression(paste0("PICP_90 == ", round(picp_90, 2)))))
+  
+  # outer_rmse[l] <- sqrt(mean((outer_tst[,"AE_P"]-outer_preds)^2))
+  pp <- ggplot(QRF_predictions, aes(observed,predicted)) +
+    geom_errorbar(QRF_predictions, mapping = aes(xmin = Q0.05, xmax = Q0.95), color = "#808080") +
+    geom_point(aes(color = PICP_90, shape = PICP_90)) +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", colour = 'black') +
+    labs(title = "", x = "Observed AE (P) (kg/kg)", y = "Predicted AE (P) (kg/kg)", color = "PICP_90") +
+    coord_equal() +
+    coord_equal() +
+    ylim(-50,400) +
+    xlim(-50,400) +
+    geom_text(data = df.annotations,
+              aes(x = Inf, y = -Inf, label = me), size = 3,
+              hjust = 1.15, vjust = -8, parse = TRUE) +
+    geom_text(data = df.annotations,
+              aes(x = Inf, y = -Inf, label = rmse), size = 3,
+              hjust = 1.15, vjust = -5.75, parse = TRUE) +
+    geom_text(data = df.annotations,
+              aes(x = Inf, y = -Inf, label = mec), size = 3,
+              hjust = 1.15, vjust = -3.5, parse = TRUE) +
+    geom_text(data = df.annotations,
+              aes(x = Inf, y = -Inf, label = picp_90), size = 3,
+              hjust = 1.15, vjust = -0.9, parse = TRUE) +
+    theme_classic() +
+    theme(text = element_text(size = 12)) +
+    theme(legend.position="top")
+  
+  ggsave(paste('AE_P', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P", width = 6, height = 4, device = "tiff", dpi = 300)
+  
+  outer_plots[[l]] <- pp
+  
+  # Variable importance plot from the K- model
+  vip <- tibble(Covariate = names(outer_fit$variable.importance),
+                      Importance = outer_fit$variable.importance) %>% 
+    arrange(-Importance)
+  
+  # plot variable importance (30 most important ones)
+  var_imp_p[[l]] <- vip %>% 
+    slice(1:30) %>% 
+    ggplot(., aes(y = reorder(Covariate, Importance))) +
+    geom_bar(aes(weight = Importance,)) +
+    xlab("Importance (permutation)") +
+    ylab("Explanatory Variables (p = 30)") + 
+    theme(legend.position = c(0.87, 0.25)) +
+    theme()
+}
+
+index_min_rmse <- which.min(results[,'Tst_RMSE'])
+best_parameters <- prm_grd[list_best_index[index_min_rmse],]
+```
+
+```{r}
+# Save list of results in CSV file
+write.csv(results, "results_ae_p.csv", row.names = FALSE)
+
+# Save list of best parameters in CSV file
+write.csv(best_parameters, "best_parameters_ae_p.csv", row.names = FALSE)
+```
+
+```{r}
+# Plot output plots of models
+outer_plots
+```
+
+```{r}
+# Train final model using best hyperparameters
+final_ae_p_fit <- ranger(
+        formula = formula_rf, 
+        data = Comp_dats, # train with all datsets
+        num.trees = 1000,
+        importance = "permutation",
+        local.importance = TRUE,
+        quantreg = TRUE, 
+        keep.inbag = TRUE,
+        oob.error = TRUE,
+        replace = FALSE,
+        sample.fraction = 0.80,
+        mtry = 5,
+        splitrule = "variance",
+        min.node.size = 5
+        )
+```
+
+```{r}
+# Inspect and save final calibrated RF model for AE (N) prediction
+final_ae_p_fit
+
+# Save Final AE (N) prediction model
+saveRDS(final_ae_p_fit, "./final_ae_p_fit.rds") 
+```
+
+```{r}
+# Variable importance plot from the optimal model
+Var_imp_plt <- tibble(Covariate = names(final_ae_p_fit$variable.importance),
+                      Importance = final_ae_p_fit$variable.importance,
+                      Group = "") %>% 
+  arrange(-Importance)
+
+# Variable Importance from optimal model
+write.csv(Var_imp_plt, "Var_imp_plt.csv", row.names = FALSE) 
+```
+
+```{r}
+# plot variable importance (30 most important ones) using model chosen (see above)
+Var_imp_plt <- read.csv(file = "Var_imp.csv")
+
+# plot variable importance (30 most important ones) using model chosen (see above)
+var_imp_p <- Var_imp_plt %>% 
+  slice(1:30) %>% 
+  ggplot(., aes(y = reorder(Covariate, Importance), fill = Group)) +
+  geom_bar(aes(weight = Importance,)) +
+  xlab("Importance (permutation)") +
+  ylab("Explanatory Variables (p = 30)") + 
+  theme(legend.position = c(0.87, 0.25)) +
+  theme()
+var_imp_p
+```
+
+```{r}
+ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P/aep_varimp1.png', width = 6, height = 4, dpi = 500)
+```
+
+
+```{r}
+# Predictions for the training data
+  outer_pred_fin <- final_ae_p_fit$predictions
+  
+  # Compute RMSE, ME and MEC for the training phase
+  #Mean_F <- mean(Comp_dats[,"Grain_yield_kg_ha"]-outer_pred_fin)
+  #RMSE_F <- sqrt(mean((Comp_dats[,"Grain_yield_kg_ha"]-outer_pred_fin)^2))
+  #RSQUARED_F <- final_ae_n_fit$r.squared
+  
+  # Predictions for the testing data
+  outer_pred_tstF <- predict(final_ae_p_fit,
+                        Comp_dats, # just added this
+                        type = "quantiles",
+                        quantiles = QUANTILES,
+                        keep.inbag = TRUE
+                        )
+  outer_pred_tst_F <- predict(final_ae_p_fit,
+                        Comp_dats
+                        )
+  outer_preds_fin <- outer_pred_tst_F$predictions
+  
+# Compute n, ME, RMME and MEC for the testing phase
+  Mean_F <- mean(Comp_dats[,"AE_P"]-outer_preds_fin)
+  RMSE_F <- sqrt(mean((Comp_dats[,"AE_P"]-outer_preds_fin)^2))
+  MEC_fin <- 1-((sum((Comp_dats[,"AE_P"]-outer_preds_fin)^2))/
+             sum((Comp_dats[,"AE_P"] - mean(Comp_dats[,"AE_P"]))^2)) 
+  
+  # Dataframe with model predictions 
+  QRF_predictions_fin <- data.frame(Comp_dats[,"AE_P"], outer_preds_fin, outer_pred_tstF$predictions)
+  names(QRF_predictions_fin)[-(1:2)] <- paste0("Q",QUANTILES)
+  names(QRF_predictions_fin)[1:2] <- c('observed', 'predicted')
+  
+  QRF_predictions_fin$binary <- ifelse((QRF_predictions_fin$observed > QRF_predictions_fin$Q0.05) & QRF_predictions_fin$observed <  QRF_predictions_fin$Q0.95,1,0)
+  QRF_predictions_fin$PICP_90 <- ifelse(QRF_predictions_fin$binary ==1,'Within interval','Outside interval')
+  
+  s_fin <- QRF_predictions_fin %>%
+  group_by(PICP_90) %>%
+  summarise( percent = 100 * n() / nrow(QRF_predictions_fin))
+  
+  within90 <- s_fin$percent[2]
+  outside90 <- s_fin$percent[1]
+
+  df.annotations_fin <- tibble(
+    me = Mean_F,
+    rmse = RMSE_F,
+    mec = MEC_fin,
+    picp_90 = within90) %>%
+    
+    # Modify columns for plot annotation (char = characters)
+    mutate(me = as.character(as.expression(paste0("ME == ", round(me, 2)))),
+           rmse = as.character(as.expression(paste0("RMSE == ", round(rmse, 2)))),
+           mec = as.character(as.expression(paste0("MEC == ", round(mec, 2)))),
+           picp_90 = as.character(as.expression(paste0("PICP_90 == ", round(picp_90, 2)))))
+  
+  pfun <- function(x,y, ...){
+    panel.hexbinplot(x,y, ...)
+    panel.loess(x, y, ..., col = "black",lty=1,lw=2,span=1/18)
+    }
+
+  pal <- c("#FFFF60FF","#FFF609FF","#FFDE21FF","#FFC639FF","#FFAE51FF","#FF9669FF",
+           "#FF7D82FF","#FF659AFF","#FF4DB2FF","#DA35CAFF","#B41DE2FF","#8F05FAFF",
+           "#6900FFFF","#4300FFFF","#1D00FFFF","#0000F4FF","#0000C4FF","#000094FF")
+           
+  xlabtext <- expression(paste("Observed AE-P (kg kg"^"-1",")"))
+  ylabtext <- expression(paste("Predicted AE-P (kg kg"^"-1",")"))
+  
+  png("AE--P.png",  width=2800, height=2800, res=600)
+  ew <- hexbinplot(QRF_predictions_fin$predicted~QRF_predictions_fin$observed, colramp=colorRampPalette(pal),
+             xlim=c(-50,400), ylim=c(-50,400),
+             xlab=xlabtext, ylab=ylabtext, type="g", lwd=1,
+             lcex=8, inner=.2, cex.labels=.8, asp=1, xbins=30,
+             ybins=30, colorcut=c(0,0.01,0.03,0.07,0.15,0.25,0.5,0.75,1),
+             panel = function(x, y, ...) {
+               panel.hexbinplot(x, y, ...)
+               lattice::panel.abline(a = 0, b = 1, lwd=1)
+               })
+  dev.off()
+  
+  ew
+
+  ggsave(paste('AEP_F', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P", width = 6, height = 4, device = "tiff", dpi = 300)
+
+```
