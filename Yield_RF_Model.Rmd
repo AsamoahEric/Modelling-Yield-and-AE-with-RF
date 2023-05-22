@@ -272,7 +272,7 @@ for(l in 1:k){
     theme(text = element_text(size = 12)) +
     theme(legend.position="top")
   
-  ggsave(paste('Yield', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/Maize_Yield", width = 6, height = 4, device = "tiff", dpi = 300)
+  ggsave(paste('Yield', 'Fold', as.character(l),'.tiff', sep = '_'), path = "./Maize_Yield", width = 6, height = 4, device = "tiff", dpi = 300)
   
   outer_plots[[l]] <- pp
   
@@ -364,9 +364,8 @@ var_imp_p
 ```
 
 ```{r}
-ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/Maize_Yield/y_varimp1.png', width = 6, height = 4, dpi = 500)
+ggsave(file = './y_varimp1.png', width = 6, height = 4, dpi = 500)
 ```
-
 
 ```{r}
 # Predictions for the training data
@@ -476,40 +475,5 @@ ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research
   dev.off()
   img
   
-  
-  ggsave(paste('Yield', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/Maize_Yield_F", width = 6, height = 4, device = "tiff", dpi = 300)
-
-```
-
-```{r}
-# First generate inputs, in reality we have them already
-
-n <- nrow(QRF_predictions_fin) # sample size
-obs <- QRF_predictions_fin$observed  # observations
-pred <- QRF_predictions_fin$predicted  # predictions
-
-# next generate quantile values:
-q <- seq(from=0.02, to=0.98, by=0.04)  # the quantiles that we specified to QRF
-Q <- QRF_predictions_fin[,1:103]  # this matrix stores the quantile values for all prediction locations
-
-# fill the matrix:
-#i <- 0
-#for (j in q){
-#  i <- i+1
-#  Q[,i] <- pred + qnorm(j)  # just an example, we choose quantiles such that PICP values will be fine
-#}
-# The above was just preparation, to get a dataset, we will get it from QRF and validation data
-
-# Now we compute the PICP for all symmetric intervals that can be derived from the quantiles
-O <- rep(NA,((length(q)-1)/2))  # vector that stores observed proportions
-E <- rep(NA,((length(q)-1)/2))  # vector that stores expected proportions
-
-for (j in 1:length(O)){
-  O[j] <- mean((obs >= Q[,j]) & (obs <= Q[,(length(q)+1-j)]))  # count proportion observations inside
-  E[j] <- 1-2*q[j]  # this is the proportion expected to be inside
-}
-
-plot(E,O,xlim=c(0,1), ylim=c(0,1))
-abline(0,1)
-
+  ggsave(paste('Yield', 'Fold', as.character(l),'.tiff', sep = '_'), path = "./Maize_Yield_F", width = 6, height = 4, device = "tiff", dpi = 300)
 ```
