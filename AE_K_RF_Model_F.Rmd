@@ -28,7 +28,7 @@ lapply(pkgs, library, character.only = TRUE)
 
 ```{r}
 # Set Working directory
-setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_K")
+setwd("./AE_K")
 ```
 
 ```{r}
@@ -36,7 +36,7 @@ setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI 
 set.seed(2022)
 
 # Read in final prepared data containing NUE indicator  ----------------------
-Compiled_Datasets <- readRDS(file = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/1_Data_Preparation/reg_mat_c.rds")
+Compiled_Datasets <- readRDS(file = "./reg_mat_c.rds")
 
 Comp_dats <- subset(Compiled_Datasets, select = -c(Site_ID,Year_of_experiment,Latitude,Longitude,Grain_yield_kg_ha,AE_N,AE_P,N_kg_ha,P2O5_kg_ha,K2O_kg_ha,Plot_ID))
 
@@ -290,7 +290,7 @@ for(l in 1:k){
     theme(text = element_text(size = 12)) +
     theme(legend.position="top")
   
-  ggsave(paste('AE_K', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_K", width = 6, height = 4, device = "tiff", dpi = 300)
+  ggsave(paste('AE_K', 'Fold', as.character(l),'.tiff', sep = '_'), path = "./AE_K", width = 6, height = 4, device = "tiff", dpi = 300)
   
   outer_plots[[l]] <- pp
   
@@ -382,7 +382,7 @@ var_imp_p
 ```
 
 ```{r}
-ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_K/aek_varimp1.png', width = 6, height = 4, dpi = 500)
+ggsave(file = './aek_varimp1.png', width = 6, height = 4, dpi = 500)
 ```
 
 
@@ -466,6 +466,6 @@ ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research
   
   ew
 
-  ggsave(paste('AEK_F', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P", width = 6, height = 4, device = "tiff", dpi = 600)
+  ggsave(paste('AEK_F', 'Fold', as.character(l),'.tiff', sep = '_'), path = "./AE_P", width = 6, height = 4, device = "tiff", dpi = 600)
 
 ```
