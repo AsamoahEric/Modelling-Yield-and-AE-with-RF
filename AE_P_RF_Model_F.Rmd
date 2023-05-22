@@ -71,7 +71,6 @@ AE_P_data <- Comp_dats
 # p: number of folds in the inner loop
 
 k <- 5
-# If the same number of folds in the outer and inner loop use:
 p <- 10
 
 AE_P_data <- AE_P_data[sample(1:nrow(AE_P_data)),]
