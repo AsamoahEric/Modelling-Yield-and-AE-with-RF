@@ -66,12 +66,11 @@ AE_N_data <- Comp_dats
 ```
 
 ```{r}
-# create outer-folds / this is for 10-fold cross-validation
+# create outer and inner folds for cross-validation
 # k: number of folds in the outer loop
 # p: number of folds in the inner loop
 
 k <- 5
-# If the sqme number of folds in the outer and inner loop use:
 p <- 10
 
 AE_N_data <- AE_N_data[sample(1:nrow(AE_N_data)),]
