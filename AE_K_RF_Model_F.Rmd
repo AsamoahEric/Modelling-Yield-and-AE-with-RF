@@ -1,5 +1,5 @@
 ---
-title: "Modelling - 01"
+title: "Modelling - 04"
 author: "Eric Asamoah"
 date: "2022-December-09"
 output:
@@ -71,30 +71,12 @@ AE_K_data <- Comp_dats
 # p: number of folds in the inner loop
 
 k <- 5
-# If the sqme number of folds in the outer and inner loop use:
 p <- 10
 
 AE_K_data <- AE_K_data[sample(1:nrow(AE_K_data)),]
 AE_K_data$cv_inds <- cut(seq(1,nrow(AE_K_data)),breaks=k,labels=FALSE)
 
-#nre-order the data set
-AE_K_data <- AE_K_data[order(as.numeric(row.names(AE_K_data))),]
-cv_nr <- ncol(AE_K_data)
-```
-
-```{r}
-# create outer-folds / this is for 10-fold cross-validation
-# k: number of folds in the outer loop
-# p: number of folds in the inner loop
-
-k <- 5
-# If the sqme number of folds in the outer and inner loop use:
-p <- 10
-
-AE_K_data <- AE_K_data[sample(1:nrow(AE_K_data)),]
-AE_K_data$cv_inds <- cut(seq(1,nrow(AE_K_data)),breaks=k,labels=FALSE)
-
-#nre-order the data set
+# Re-order the data set
 AE_K_data <- AE_K_data[order(as.numeric(row.names(AE_K_data))),]
 cv_nr <- ncol(AE_K_data)
 ```
