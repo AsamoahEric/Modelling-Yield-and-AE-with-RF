@@ -28,7 +28,7 @@ lapply(pkgs, library, character.only = TRUE)
 
 ```{r}
 # Set working directory ----------------------
-setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/Maize_Yield")
+setwd("./Maize_Yield")
 ```
 
 ```{r}
@@ -36,7 +36,7 @@ setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI 
 set.seed(2022)
 
 # Read in final prepared data containing NUE indicator ----------------------
-Compiled_Datasets <- readRDS(file = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/1_Data_Preparation/reg_mat_c.rds")
+Compiled_Datasets <- readRDS(file = "./reg_mat_c.rds")
 
 Comp_Dats <- subset(Compiled_Datasets, select = -c(Latitude,Longitude,Year_of_experiment,AE_N,AE_P,AE_K,Site_ID,Plot_ID))
 ```
