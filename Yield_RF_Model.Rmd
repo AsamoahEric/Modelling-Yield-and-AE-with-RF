@@ -71,7 +71,6 @@ yld_data <- subset(Comp_Dats, !is.na(Comp_Dats$Grain_yield_kg_ha))
 # p: number of folds in the inner loop
 
 k <- 5
-# If the sqme number of folds in the outer and inner loop use:
 p <- 10
 
 yld_data <- yld_data[sample(1:nrow(yld_data)),]
