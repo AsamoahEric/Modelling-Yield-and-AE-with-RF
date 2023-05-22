@@ -1,5 +1,5 @@
 ---
-title: "Modelling - 01"
+title: "Modelling - 02"
 author: "Eric Asamoah"
 date: "2022-December-09"
 output:
@@ -28,7 +28,7 @@ lapply(pkgs, library, character.only = TRUE)
 
 ```{r}
 # Set Working directory
-setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P")
+setwd("./AE_P")
 ```
 
 ```{r}
@@ -36,7 +36,7 @@ setwd("C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI 
 set.seed(2022)
 
 # Read in final prepared data containing NUE indicator  ----------------------
-Compiled_Datasets <- readRDS(file = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/1_Data_Preparation/reg_mat_c.rds")
+Compiled_Datasets <- readRDS(file = "./reg_mat_c.rds")
 
 Comp_dats <- subset(Compiled_Datasets, select = -c(Site_ID,Year_of_experiment,Latitude,Longitude,Grain_yield_kg_ha,AE_N,AE_K,N_kg_ha,P2O5_kg_ha,K2O_kg_ha,Plot_ID))
 
@@ -71,24 +71,7 @@ AE_P_data <- Comp_dats
 # p: number of folds in the inner loop
 
 k <- 5
-# If the sqme number of folds in the outer and inner loop use:
-p <- 10
-
-AE_P_data <- AE_P_data[sample(1:nrow(AE_P_data)),]
-AE_P_data$cv_inds <- cut(seq(1,nrow(AE_P_data)),breaks=k,labels=FALSE)
-
-#nre-order the data set
-AE_P_data <- AE_P_data[order(as.numeric(row.names(AE_P_data))),]
-cv_nr <- ncol(AE_P_data)
-```
-
-```{r}
-# create outer-folds / this is for 10-fold cross-validation
-# k: number of folds in the outer loop
-# p: number of folds in the inner loop
-
-k <- 5
-# If the sqme number of folds in the outer and inner loop use:
+# If the same number of folds in the outer and inner loop use:
 p <- 10
 
 AE_P_data <- AE_P_data[sample(1:nrow(AE_P_data)),]
@@ -291,7 +274,7 @@ for(l in 1:k){
     theme(text = element_text(size = 12)) +
     theme(legend.position="top")
   
-  ggsave(paste('AE_P', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P", width = 6, height = 4, device = "tiff", dpi = 300)
+  ggsave(paste('AE_P', 'Fold', as.character(l),'.tiff', sep = '_'), path = "./AE_P", width = 6, height = 4, device = "tiff", dpi = 300)
   
   outer_plots[[l]] <- pp
   
@@ -383,9 +366,8 @@ var_imp_p
 ```
 
 ```{r}
-ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P/aep_varimp1.png', width = 6, height = 4, dpi = 500)
+ggsave(file = './aep_varimp1.png', width = 6, height = 4, dpi = 500)
 ```
-
 
 ```{r}
 # Predictions for the training data
@@ -467,6 +449,5 @@ ggsave(file = 'C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research
   
   ew
 
-  ggsave(paste('AEP_F', 'Fold', as.character(l),'.tiff', sep = '_'), path = "C:/Users/Eric_Asamoah/OneDrive - Wageningen University & Research/FERARI PhD 1 - Eric Asamoah/Academic/Data/Scripts/4_RF_models/Final_RF_Models/AE_P", width = 6, height = 4, device = "tiff", dpi = 300)
-
+  ggsave(paste('AEP_F', 'Fold', as.character(l),'.tiff', sep = '_'), path = "./AE_P", width = 6, height = 4, device = "tiff", dpi = 300)
 ```
